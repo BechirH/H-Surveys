@@ -21,7 +21,7 @@ services:
 
   # User Service
   user-service:
-    image: ghcr.io/bechirh/user_management_src:20250611-172941
+    image: ghcr.io/bechirh/user_management_src:20250611-172941:latest
     container_name: user-service
     depends_on:
       postgres:
@@ -37,7 +37,7 @@ services:
 
   # Organization Service
   organization-service:
-    image: ghcr.io/tarekmestiri/orgmanagement:20250611-171352
+    image: ghcr.io/tarekmestiri/orgmanagement:20250611-171352:latest
     container_name: organization-service
     depends_on:
       postgres:
@@ -53,7 +53,7 @@ services:
 
   # Survey Service
   survey-service:
-    image: ghcr.io/soussioumaima/surveyservice:20250611-170855
+    image: ghcr.io/soussioumaima/surveyservice:20250611-170855:latest
     container_name: survey-service
     depends_on:
       postgres:
