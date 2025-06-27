@@ -68,7 +68,7 @@ services:
       - "8083:8080"
   # front-end service 
   frontend:
-    image: ghcr.io/<ton-utilisateur-github>/Hsurveys_front:20250627-123152
+    image: ghcr.io/bechirh/Hsurveys_front:20250627-123152
     container_name: frontend
     ports:
       - "80:80"
