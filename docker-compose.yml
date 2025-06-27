@@ -21,7 +21,7 @@ services:
 
   # User Service
   user-service:
-    image: ghcr.io/bechirh/user_management_src:latest
+    image: ghcr.io/bechirh/user_management_src:20250615-224216
     container_name: user-service
     depends_on:
       postgres:
@@ -37,7 +37,7 @@ services:
 
   # Organization Service
   organization-service:
-    image: ghcr.io/tarekmestiri/orgmanagement:latest
+    image: ghcr.io/tarekmestiri/orgmanagement:20250615-231351
     container_name: organization-service
     depends_on:
       postgres:
@@ -53,7 +53,7 @@ services:
 
   # Survey Service
   survey-service:
-    image: ghcr.io/soussioumaima/surveyservice:latest
+    image: ghcr.io/soussioumaima/surveyservice:20250616-142043
     container_name: survey-service
     depends_on:
       postgres:
@@ -66,6 +66,16 @@ services:
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}    # 24h
     ports:
       - "8083:8080"
+  # front-end service 
+  frontend:
+    image: ghcr.io/bechirh/Hsurveys_front:20250627-123152
+    container_name: frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - user-service
+      - organization-service
+      - survey-service
 
 volumes:
   postgres_data:
