@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # Shared PostgreSQL Database
   postgres:
@@ -14,14 +12,60 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${SHARED_DB_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${SHARED_DB_USER:-postgres} -d ${SHARED_DB_NAME:-maindb}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  # Redis Rate Limiting
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_data:/data
+
+  # Gateway Service 
+  gateway:
+    image: ghcr.io/bechirh/gatewayservice:20250715-172531
+    container_name: gateway
+    ports:
+      - "8080:8080"
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-900000}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      RATE_LIMIT_REPLENISH_RATE: ${RATE_LIMIT_REPLENISH_RATE:-10}
+      RATE_LIMIT_BURST_CAPACITY: ${RATE_LIMIT_BURST_CAPACITY:-20}
+      RATE_LIMIT_REQUESTED_TOKENS: ${RATE_LIMIT_REQUESTED_TOKENS:-1}
+      HEALTH_CHECK_URL: ${GATEWAY_HEALTH_CHECK_URL:-http://localhost:8080/actuator/health}
+    depends_on:
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      organization-service:
+        condition: service_started
+      survey-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "${GATEWAY_HEALTH_CHECK_URL:-http://localhost:8080/actuator/health}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   # User Service
   user-service:
-    image: ghcr.io/bechirh/user_management_src:20250615-224216
+    image: ghcr.io/bechirh/user_management:20250715-173304
     container_name: user-service
     depends_on:
       postgres:
@@ -30,14 +74,20 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/${SHARED_DB_NAME:-maindb}?currentSchema=user_service"
       SPRING_DATASOURCE_USERNAME: ${SHARED_DB_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${SHARED_DB_PASSWORD:-postgres}
-      JWT_SECRET: ${JWT_SECRET:-defaultSecretKey}
-      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-900000}
     ports:
       - "8081:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "${USER_SERVICE_HEALTH_CHECK_URL:-http://localhost:8080/actuator/health}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # Organization Service
   organization-service:
-    image: ghcr.io/tarekmestiri/orgmanagement:20250615-231351
+    image: ghcr.io/bechirh/organizationmanagement:20250715-173452
     container_name: organization-service
     depends_on:
       postgres:
@@ -46,14 +96,18 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/${SHARED_DB_NAME:-maindb}?currentSchema=organization_service"
       SPRING_DATASOURCE_USERNAME: ${SHARED_DB_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${SHARED_DB_PASSWORD:-postgres}
-      JWT_SECRET: ${JWT_SECRET:-defaultSecretKey}
-      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
     ports:
       - "8082:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "${ORG_SERVICE_HEALTH_CHECK_URL:-http://localhost:8080/actuator/health}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # Survey Service
   survey-service:
-    image: ghcr.io/soussioumaima/surveyservice:20250616-142043
+    image: ghcr.io/soussioumaima/surveyservice:20250711-124533
     container_name: survey-service
     depends_on:
       postgres:
@@ -62,20 +116,30 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/${SHARED_DB_NAME:-maindb}?currentSchema=survey_service"
       SPRING_DATASOURCE_USERNAME: ${SHARED_DB_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${SHARED_DB_PASSWORD:-postgres}
-      JWT_SECRET: ${JWT_SECRET:-defaultSecretKey}
-      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}    # 24h
+      JWT_SECRET: ${JWT_SECRET:-404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-900000}
     ports:
       - "8083:8080"
-  # front-end service 
-  frontend:
-    image: ghcr.io/bechirh/Hsurveys_front:20250627-123152
-    container_name: frontend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "${SURVEY_SERVICE_HEALTH_CHECK_URL:-http://localhost:8080/actuator/health}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend React App
+  front:
+    image: ghcr.io/bechirh/hsurveys_front:20250715-184445
+    container_name: front
     ports:
-      - "80:80"
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL}
     depends_on:
-      - user-service
-      - organization-service
-      - survey-service
+      - gateway
+    env_file:
+      - .env
 
 volumes:
   postgres_data:
+  redis_data:
